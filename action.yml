@@ -1,0 +1,55 @@
+name: 'Code review'
+description: 'Review your PR by @My_Mai_Eld. Powered by Claude Code.'
+
+
+inputs:
+  anthropic-api-key:
+    description: "Anthropic API key"
+    required: true
+  show-claude-code-full-output:
+    description: "Show full JSON output"
+    default: "false"
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Generate user prompt
+      id: user-prompt
+      uses: actions/github-script@v8
+      with:
+        result-encoding: 'string'
+        script: |
+          const { run } = await import("${{ github.action_path }}/src/createUserPrompt.ts");
+          return run({
+            github,
+            context,
+          });
+
+    - name: Run Claude Code
+      id: claude-code
+      uses: anthropics/claude-code-base-action@9436a9a768f4ea16b6efa71b25168fbd0a76885d # (2026/01/17) https://github.com/anthropics/claude-code-base-action/commit/9436a9a768f4ea16b6efa71b25168fbd0a76885d
+      with:
+        show_full_output: "${{ inputs.show-claude-code-full-output }}"
+        anthropic_api_key: "${{ inputs.anthropic-api-key }}"
+        claude_args: |
+          --model "haiku"
+          --system-prompt "${{ github.action_path }}/SYSTEM_PROMPT.md"
+        prompt: '${{ steps.user-prompt.outputs.result }}'
+
+    - name: Display Claude Code Report
+      shell: "bash"
+      run: |
+        {
+          echo "## User prompt"
+          echo ""
+          echo '```'
+          echo "${{ steps.user-prompt.outputs.result }}"
+          echo '```'
+          echo ""
+          echo "## Claude Code Report (Raw Output)"
+          echo ""
+          echo '```json'
+          cat "${{ steps.claude-code.outputs.execution_file }}"
+          echo ""
+          echo '```'
+        } >> $GITHUB_STEP_SUMMARY
